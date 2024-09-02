@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>포모도로 타이머</title>
+    <title>포모도로 타이머 & 수능 카운트다운</title>
     <style>
         body, html {
             margin: 0;
@@ -13,6 +13,7 @@
             overflow: hidden;
             font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
             color: #ffffff;
+            background: #1a1a2e;
         }
         #canvas {
             position: fixed;
@@ -28,23 +29,30 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(16, 29, 44, 0.8);
             padding: 2rem;
             border-radius: 20px;
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.18);
+            width: 80%;
+            max-width: 600px;
         }
-        h1 {
+        h1, h2 {
             margin-bottom: 1rem;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            color: #f0f0f0;
         }
         .timer {
             font-size: 3rem;
             margin: 1rem 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            color: #4ecca3;
         }
-        .controls button, #voiceToggle {
+        .stopwatch {
+            font-size: 1.5rem;
+            margin: 0.5rem 0;
+            color: #ff6b6b;
+        }
+        .controls button {
             border: none;
             padding: 0.5rem 1rem;
             margin: 0.5rem;
@@ -53,18 +61,15 @@
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.3s ease;
-            background-color: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: #16213e;
         }
-        .controls button:hover, #voiceToggle:hover {
-            background-color: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
+        .controls button:hover {
+            background-color: #0f3460;
         }
         .mode-switch button {
             background: none;
             border: none;
-            color: white;
+            color: #eeeeee;
             cursor: pointer;
             opacity: 0.7;
             transition: opacity 0.3s ease;
@@ -75,29 +80,33 @@
         .mode-switch button.active {
             opacity: 1;
             font-weight: bold;
-            background-color: rgba(255, 255, 255, 0.2);
+            background-color: #16213e;
         }
         .progress-ring {
-            position: relative;
-            width: 240px;
-            height: 240px;
-        }
-        .progress-ring-circle-bg, .progress-ring-circle, .clock-marks {
-            fill: none;
-            stroke-width: 4;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
         }
         .progress-ring-circle-bg {
-            stroke: rgba(255, 255, 255, 0.2);
+            fill: none;
+            stroke: #233554;
         }
         .progress-ring-circle {
-            stroke: #FFD700;
+            fill: none;
+            stroke: #4ecca3;
             stroke-linecap: round;
             transition: stroke-dashoffset 0.35s;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
         }
-        .clock-marks {
-            stroke: rgba(255, 255, 255, 0.5);
+        .csat-countdown {
+            margin-top: 20px;
+            font-size: 1rem;
+            text-align: center;
+        }
+        .csat-timer {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #e84545;
         }
     </style>
 </head>
@@ -106,15 +115,13 @@
     <div class="container">
         <h1>포모도로 타이머</h1>
         <div class="progress-ring">
-            <svg width="240" height="240" viewBox="0 0 240 240">
-                <circle class="progress-ring-circle-bg" cx="120" cy="120" r="110"/>
-                <circle class="progress-ring-circle" cx="120" cy="120" r="110"/>
-                <g class="clock-marks">
-                    <!-- 25 marks for 25 minutes -->
-                </g>
+            <svg width="200" height="200" viewBox="0 0 200 200">
+                <circle class="progress-ring-circle-bg" cx="100" cy="100" r="90" stroke-width="10"/>
+                <circle class="progress-ring-circle" cx="100" cy="100" r="90" stroke-width="10"/>
             </svg>
         </div>
         <div class="timer" id="timer">25:00</div>
+        <div class="stopwatch" id="stopwatch">00:00:00.000</div>
         <div class="controls">
             <button id="startStop">시작</button>
             <button id="reset">초기화</button>
@@ -123,7 +130,13 @@
             <button id="workMode" class="active">작업</button>
             <button id="breakMode">휴식</button>
         </div>
-        <button id="voiceToggle">음성 알림: 켜짐</button>
+        
+        <div class="csat-countdown">
+            <h2>2025학년도 대학수학능력시험</h2>
+            <div id="csat2025" class="csat-timer"></div>
+            <h2>2026학년도 대학수학능력시험</h2>
+            <div id="csat2026" class="csat-timer"></div>
+        </div>
     </div>
 
     <script id="vertexShader" type="x-shader/x-vertex">
@@ -140,10 +153,10 @@
 
         void main() {
             vec2 st = gl_FragCoord.xy / u_resolution.xy;
-            float pct = length(st - 0.5);
-            vec3 color = vec3(0.1, 0.1, 0.2);
-            color += 0.1 * vec3(sin(u_time * 0.1), sin(u_time * 0.08), sin(u_time * 0.12));
-            color = mix(color, vec3(0.2, 0.2, 0.3), pct);
+            float pct = abs(sin(u_time * 0.1));
+            
+            vec3 color = mix(vec3(0.1, 0.1, 0.2), vec3(0.3, 0.2, 0.5), pct);
+            
             gl_FragColor = vec4(color, 1.0);
         }
     </script>
@@ -214,36 +227,21 @@
         }
         requestAnimationFrame(drawScene);
 
-        // Clock marks
-        const clockMarks = document.querySelector('.clock-marks');
-        for (let i = 0; i < 25; i++) {
-            const angle = (i / 25) * Math.PI * 2 - Math.PI / 2;
-            const x1 = 120 + Math.cos(angle) * 105;
-            const y1 = 120 + Math.sin(angle) * 105;
-            const x2 = 120 + Math.cos(angle) * 115;
-            const y2 = 120 + Math.sin(angle) * 115;
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', x1);
-            line.setAttribute('y1', y1);
-            line.setAttribute('x2', x2);
-            line.setAttribute('y2', y2);
-            clockMarks.appendChild(line);
-        }
-
         // Pomodoro Timer Logic
         const timer = document.getElementById('timer');
+        const stopwatch = document.getElementById('stopwatch');
         const startStopBtn = document.getElementById('startStop');
         const resetBtn = document.getElementById('reset');
         const workModeBtn = document.getElementById('workMode');
         const breakModeBtn = document.getElementById('breakMode');
         const progressRing = document.querySelector('.progress-ring-circle');
-        const voiceToggleBtn = document.getElementById('voiceToggle');
 
         let countdown;
+        let stopwatchInterval;
         let secondsLeft = 25 * 60;
         let isRunning = false;
         let isWorkMode = true;
-        let isVoiceEnabled = true;
+        let stopwatchTime = 0;
 
         const radius = progressRing.r.baseVal.value;
         const circumference = radius * 2 * Math.PI;
@@ -263,13 +261,19 @@
             setProgress(((totalSeconds - secondsLeft) / totalSeconds) * 100);
         }
 
+        function updateStopwatch() {
+            const hours = Math.floor(stopwatchTime / 3600000);
+            const minutes = Math.floor((stopwatchTime % 3600000) / 60000);
+            const seconds = Math.floor((stopwatchTime % 60000) / 1000);
+            const milliseconds = stopwatchTime % 1000;
+            stopwatch.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+        }
+
         function startTimer() {
             clearInterval(countdown);
+            clearInterval(stopwatchInterval);
             isRunning = true;
             startStopBtn.textContent = '일시정지';
-            if (isVoiceEnabled) {
-                speak(isWorkMode ? "작업을 시작합니다" : "휴식을 시작합니다");
-            }
             countdown = setInterval(() => {
                 secondsLeft--;
                 updateTimer();
@@ -277,32 +281,31 @@
                     clearInterval(countdown);
                     isRunning = false;
                     startStopBtn.textContent = '시작';
-                    if (isVoiceEnabled) {
-                        speak(isWorkMode ? "휴식 시간입니다" : "작업을 다시 시작합시다");
-                    }
                     toggleMode();
                 }
             }, 1000);
+            stopwatchInterval = setInterval(() => {
+                stopwatchTime += 10;
+                updateStopwatch();
+            }, 10);
         }
 
         function stopTimer() {
             clearInterval(countdown);
+            clearInterval(stopwatchInterval);
             isRunning = false;
             startStopBtn.textContent = '시작';
-            if (isVoiceEnabled) {
-                speak("타이머를 일시정지했습니다");
-            }
         }
 
         function resetTimer() {
             clearInterval(countdown);
+            clearInterval(stopwatchInterval);
             isRunning = false;
             secondsLeft = isWorkMode ? 25 * 60 : 5 * 60;
+            stopwatchTime = 0;
             startStopBtn.textContent = '시작';
             updateTimer();
-            if (isVoiceEnabled) {
-                speak("타이머를 초기화했습니다");
-            }
+            updateStopwatch();
         }
 
         function toggleMode() {
@@ -311,15 +314,6 @@
             breakModeBtn.classList.toggle('active');
             secondsLeft = isWorkMode ? 25 * 60 : 5 * 60;
             updateTimer();
-            if (isVoiceEnabled) {
-                speak(isWorkMode ? "작업 모드로 전환했습니다" : "휴식 모드로 전환했습니다");
-            }
-        }
-
-        function speak(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'ko-KR';
-            speechSynthesis.speak(utterance);
         }
 
         startStopBtn.addEventListener('click', () => {
@@ -338,11 +332,29 @@
             if (isWorkMode) toggleMode();
         });
 
-        voiceToggleBtn.addEventListener('click', () => {
-            isVoiceEnabled = !isVoiceEnabled;
-            voiceToggleBtn.textContent = `음성 알림: ${isVoiceEnabled ? '켜짐' : '꺼짐'}`;
-            speak(isVoiceEnabled ? "음성 알림을 켰습니다" : "음성 알림을 껐습니다");
-        });
+        // CSAT Countdown Logic
+        function updateCSATCountdown() {
+            const now = new Date();
+            const csat2025 = new Date('2024-11-14T08:40:00+09:00');
+            const csat2026 = new Date('2025-11-13T08:40:00+09:00');
+
+            function formatTime(time) {
+                const days = Math.floor(time / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((time % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((time % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((time % (1000 * 60)) / 1000);
+                return `${days}일 ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            const time2025 = csat2025 - now;
+            const time2026 = csat2026 - now;
+
+            document.getElementById('csat2025').textContent = formatTime(time2025);
+            document.getElementById('csat2026').textContent = formatTime(time2026);
+        }
+
+        setInterval(updateCSATCountdown, 1000);
+        updateCSATCountdown();
 
         updateTimer();
     </script>
